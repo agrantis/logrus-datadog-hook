@@ -56,6 +56,7 @@ type DatadogHook struct {
 	ticker                *time.Ticker
 	wg                    sync.WaitGroup
 	done                  chan bool
+	RoundTripper          http.RoundTripper
 }
 
 type Options struct {
@@ -75,6 +76,8 @@ type Options struct {
 	GlobalTags *map[string]string
 	// Controls whether logs are batched locally before sending to Datadog; Defaults to true
 	ClientBatchingEnabled *bool
+	// Optional custom network connection dialer
+	RoundTripper http.RoundTripper
 }
 
 // Creates and Starts a new DatadogHook
@@ -127,10 +130,11 @@ func New(options *Options) (*DatadogHook, error) {
 				logrus.FieldKeyMsg: "message",
 			},
 		},
-		ticker: time.NewTicker(5 * time.Second),
-		entryC: make(chan logrus.Entry),
-		wg:     sync.WaitGroup{},
-		done:   make(chan bool),
+		ticker:       time.NewTicker(5 * time.Second),
+		entryC:       make(chan logrus.Entry),
+		wg:           sync.WaitGroup{},
+		done:         make(chan bool),
+		RoundTripper: options.RoundTripper,
 	}
 
 	if hook.ClientBatchingEnabled {
@@ -286,7 +290,12 @@ func (h *DatadogHook) send(batch [][]byte) {
 	req.Header = header
 	i := 0
 	for {
-		resp, err := http.DefaultClient.Do(req)
+		c := &http.Client{}
+		if h.RoundTripper != nil {
+			c.Transport = h.RoundTripper
+		}
+
+		resp, err := c.Do(req)
 		if err != nil || resp.StatusCode >= 400 {
 			i++
 			if h.MaxRetry < 0 || i >= h.MaxRetry {

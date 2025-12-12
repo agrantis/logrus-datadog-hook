@@ -9,7 +9,7 @@ It allows for the basic `service`, `hostname` and `source` datadog tags to be pr
 # Installing the module
 
 ```
-> go get github.com/GlobalFreightSolutions/logrus-datadog-hook
+> go get github.com/agrantis/logrus-datadog-hook
 ```
 
 # Using the Module
@@ -20,7 +20,7 @@ package main
 import (
   "time"
 
-  datadog "github.com/GlobalFreightSolutions/logrus-datadog-hook"
+  datadog "github.com/agrantis/logrus-datadog-hook"
   "github.com/sirupsen/logrus"
 )
 

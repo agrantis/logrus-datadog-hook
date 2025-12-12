@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/proxy"
 )
 
 type endpoint string
@@ -56,7 +57,7 @@ type DatadogHook struct {
 	ticker                *time.Ticker
 	wg                    sync.WaitGroup
 	done                  chan bool
-	RoundTripper          http.RoundTripper
+	ContextDialer         proxy.ContextDialer
 }
 
 type Options struct {
@@ -76,8 +77,8 @@ type Options struct {
 	GlobalTags *map[string]string
 	// Controls whether logs are batched locally before sending to Datadog; Defaults to true
 	ClientBatchingEnabled *bool
-	// Optional custom network connection dialer
-	RoundTripper http.RoundTripper
+	// Optional ContextDialer to use for HTTP requests
+	ContextDialer proxy.ContextDialer
 }
 
 // Creates and Starts a new DatadogHook
@@ -130,11 +131,11 @@ func New(options *Options) (*DatadogHook, error) {
 				logrus.FieldKeyMsg: "message",
 			},
 		},
-		ticker:       time.NewTicker(5 * time.Second),
-		entryC:       make(chan logrus.Entry),
-		wg:           sync.WaitGroup{},
-		done:         make(chan bool),
-		RoundTripper: options.RoundTripper,
+		ticker:        time.NewTicker(5 * time.Second),
+		entryC:        make(chan logrus.Entry),
+		wg:            sync.WaitGroup{},
+		done:          make(chan bool),
+		ContextDialer: options.ContextDialer,
 	}
 
 	if hook.ClientBatchingEnabled {
@@ -291,8 +292,10 @@ func (h *DatadogHook) send(batch [][]byte) {
 	i := 0
 	for {
 		c := &http.Client{}
-		if h.RoundTripper != nil {
-			c.Transport = h.RoundTripper
+		if h.ContextDialer != nil {
+			c.Transport = &http.Transport{
+				DialContext: h.ContextDialer.DialContext,
+			}
 		}
 
 		resp, err := c.Do(req)
